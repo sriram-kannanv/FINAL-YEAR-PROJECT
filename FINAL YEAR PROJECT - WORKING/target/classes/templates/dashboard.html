@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="IoT Baseline Monitoring Dashboard — Conventional IoT-Cloud Architecture (Review 2)">
+    <title>IoT Baseline — Monitoring Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="app-layout">
+
+    <!-- ============================================================
+         SIDEBAR
+         ============================================================ -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-logo">
+            <div class="logo-mark">
+                <div class="logo-icon-sm">📡</div>
+                <div class="logo-text">
+                    <h2>IoT Baseline</h2>
+                    <span>Existing System</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar-badge">REVIEW 2 — EXISTING SYSTEM</div>
+
+        <div class="nav-section">
+            <div class="nav-section-label">Overview</div>
+            <a class="nav-item active" href="#overview" id="nav-overview">
+                <span class="nav-icon">📊</span> Dashboard
+            </a>
+            <a class="nav-item" href="#devices" id="nav-devices">
+                <span class="nav-icon">🔌</span> Devices
+            </a>
+            <a class="nav-item" href="#readings" id="nav-readings">
+                <span class="nav-icon">🌡</span> Sensor Data
+            </a>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-section-label">Control</div>
+            <a class="nav-item" href="#simulator" id="nav-simulator">
+                <span class="nav-icon">⚡</span> Simulator
+            </a>
+            <a class="nav-item" href="#register" id="nav-register">
+                <span class="nav-icon">➕</span> Register Device
+            </a>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-section-label">System</div>
+            <a class="nav-item" href="#status" id="nav-status">
+                <span class="nav-icon">🔧</span> System Status
+            </a>
+        </div>
+
+        <div class="sidebar-footer">
+            <div class="user-info">
+                <div class="user-avatar">A</div>
+                <div class="user-details">
+                    <small sec:authentication="name">admin</small>
+                    <span>Administrator</span>
+                </div>
+            </div>
+            <a href="/logout" class="logout-link">⎋ Sign out</a>
+        </div>
+    </nav>
+
+    <!-- ============================================================
+         MAIN CONTENT
+         ============================================================ -->
+    <main class="main-content">
+
+        <!-- PAGE HEADER -->
+        <div class="page-header" id="overview">
+            <div>
+                <h1 class="page-title">Monitoring Dashboard</h1>
+                <p class="page-subtitle">Conventional IoT-Cloud Architecture — ESP32 + DHT22 Sensor Baseline</p>
+            </div>
+            <div class="header-actions">
+                <span class="status-badge badge-warning" id="hdr-scope-badge">
+                    Existing System Only
+                </span>
+                <span class="status-badge badge-offline" id="hdr-tls-badge">
+                    TLS: Not Active
+                </span>
+                <span class="status-badge badge-offline" id="hdr-mqtt-badge">
+                    MQTT: Connecting…
+                </span>
+                <span id="hdr-time" class="text-muted text-mono" style="font-size:0.75rem"></span>
+            </div>
+        </div>
+
+        <!-- --------------------------------------------------------
+             KPI CARDS
+             -------------------------------------------------------- -->
+        <div class="kpi-grid">
+            <div class="kpi-card purple">
+                <div class="kpi-header">
+                    <span class="kpi-label">Total Readings</span>
+                    <div class="kpi-icon purple">📈</div>
+                </div>
+                <div class="kpi-value purple" id="kpi-total">—</div>
+                <div class="kpi-sub">All-time persisted in SQLite</div>
+            </div>
+            <div class="kpi-card amber">
+                <div class="kpi-header">
+                    <span class="kpi-label">Latest Temp</span>
+                    <div class="kpi-icon amber">🌡️</div>
+                </div>
+                <div class="kpi-value amber" id="kpi-temp">—</div>
+                <div class="kpi-sub" id="kpi-temp-sub">DHT22 · °Celsius</div>
+            </div>
+            <div class="kpi-card cyan">
+                <div class="kpi-header">
+                    <span class="kpi-label">Latest Humidity</span>
+                    <div class="kpi-icon cyan">💧</div>
+                </div>
+                <div class="kpi-value cyan" id="kpi-humidity">—</div>
+                <div class="kpi-sub" id="kpi-humidity-sub">DHT22 · % Relative</div>
+            </div>
+            <div class="kpi-card green">
+                <div class="kpi-header">
+                    <span class="kpi-label">Active Devices</span>
+                    <div class="kpi-icon green">🔌</div>
+                </div>
+                <div class="kpi-value green" id="kpi-devices">—</div>
+                <div class="kpi-sub" id="kpi-devices-sub">of <span id="kpi-total-devices">?</span> registered</div>
+            </div>
+            <div class="kpi-card red">
+                <div class="kpi-header">
+                    <span class="kpi-label">Rejected Msgs</span>
+                    <div class="kpi-icon red">🚫</div>
+                </div>
+                <div class="kpi-value red" id="kpi-rejected">—</div>
+                <div class="kpi-sub">Auth failures + invalid range</div>
+            </div>
+        </div>
+
+        <!-- --------------------------------------------------------
+             CHARTS ROW
+             -------------------------------------------------------- -->
+        <div class="content-grid section-spacer">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">🌡️ Temperature History</span>
+                    <div style="display:flex;gap:0.5rem;align-items:center">
+                        <select id="chart-hours-select" class="form-field" style="padding:0.3rem 0.5rem;font-size:0.75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:inherit">
+                            <option value="1">Last 1h</option>
+                            <option value="6">Last 6h</option>
+                            <option value="24" selected>Last 24h</option>
+                        </select>
+                        <select id="chart-device-select" class="form-field" style="padding:0.3rem 0.5rem;font-size:0.75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:inherit">
+                            <option value="">All Devices</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="temp-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">💧 Humidity History</span>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="humidity-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- --------------------------------------------------------
+             RECENT READINGS TABLE
+             -------------------------------------------------------- -->
+        <div class="card section-spacer" id="readings">
+            <div class="card-header">
+                <span class="card-title">📋 Recent Sensor Readings</span>
+                <div style="display:flex;gap:0.5rem;align-items:center">
+                    <select id="filter-device" style="padding:0.3rem 0.5rem;font-size:0.75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:inherit">
+                        <option value="">All Devices</option>
+                    </select>
+                    <button class="btn btn-ghost btn-sm" onclick="loadReadings()">↻ Refresh</button>
+                </div>
+            </div>
+            <div class="card-body" style="padding:0">
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Device ID</th>
+                                <th>Temperature</th>
+                                <th>Humidity</th>
+                                <th>Timestamp</th>
+                                <th>Source</th>
+                                <th>Quality</th>
+                                <th>Topic</th>
+                            </tr>
+                        </thead>
+                        <tbody id="readings-tbody">
+                            <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:2rem">
+                                Loading readings…
+                            </td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div style="padding:0.75rem 1.25rem;border-top:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:center">
+                    <span class="text-muted" id="readings-count" style="font-size:0.8rem"></span>
+                    <div style="display:flex;gap:0.5rem">
+                        <button class="btn btn-ghost btn-sm" id="prev-page" onclick="changePage(-1)">← Prev</button>
+                        <button class="btn btn-ghost btn-sm" id="next-page" onclick="changePage(1)">Next →</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- --------------------------------------------------------
+             DEVICES + SIMULATOR ROW
+             -------------------------------------------------------- -->
+        <div class="content-grid wide section-spacer">
+
+            <!-- DEVICE STATUS -->
+            <div class="card" id="devices">
+                <div class="card-header">
+                    <span class="card-title">🔌 Device Status</span>
+                    <button class="btn btn-ghost btn-sm" onclick="loadDevices()">↻ Refresh</button>
+                </div>
+                <div class="card-body">
+                    <div id="devices-list" class="status-grid">
+                        <div style="color:var(--text-muted);text-align:center;padding:1rem">Loading devices…</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SIMULATOR CONTROLS -->
+            <div class="card" id="simulator">
+                <div class="card-header">
+                    <span class="card-title">⚡ Sensor Simulator</span>
+                    <span class="status-badge badge-offline" id="sim-status-badge">Stopped</span>
+                </div>
+                <div class="card-body">
+                    <div class="simulator-panel">
+                        <div style="font-size:0.8rem;color:var(--text-secondary);line-height:1.5">
+                            Simulates an <strong style="color:var(--text-primary)">ESP32 + DHT22</strong> sensor node.
+                            Published payloads are clearly marked <code style="color:var(--accent-amber);font-size:0.8em">simulated: true</code>.
+                        </div>
+
+                        <div class="interval-control">
+                            <span class="interval-label">Interval:</span>
+                            <input type="range" class="interval-slider" id="interval-slider"
+                                   min="2" max="60" value="5" oninput="updateIntervalDisplay(this.value)">
+                            <span class="interval-value" id="interval-display">5s</span>
+                        </div>
+
+                        <div class="sim-controls">
+                            <button class="btn btn-success" id="btn-start" onclick="startSimulator()">
+                                ▶ Start
+                            </button>
+                            <button class="btn btn-danger" id="btn-stop" onclick="stopSimulator()">
+                                ⏹ Stop
+                            </button>
+                        </div>
+
+                        <div id="sim-stats" style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-top:0.25rem">
+                            <div style="background:var(--bg-secondary);border-radius:var(--radius-sm);padding:0.6rem 0.75rem;text-align:center">
+                                <div style="font-size:1.1rem;font-weight:700;color:var(--accent-green)" id="sim-published">0</div>
+                                <div style="font-size:0.68rem;color:var(--text-muted)">Published</div>
+                            </div>
+                            <div style="background:var(--bg-secondary);border-radius:var(--radius-sm);padding:0.6rem 0.75rem;text-align:center">
+                                <div style="font-size:1.1rem;font-weight:700;color:var(--accent-red)" id="sim-failed">0</div>
+                                <div style="font-size:0.68rem;color:var(--text-muted)">Failed</div>
+                            </div>
+                        </div>
+
+                        <div style="font-size:0.72rem;color:var(--text-muted);background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.15);border-radius:var(--radius-sm);padding:0.6rem">
+                            ⚠️ Payload sent in <strong style="color:var(--accent-amber)">plaintext</strong> (no source-level encryption — conventional baseline)
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- --------------------------------------------------------
+             DEVICE REGISTRATION
+             -------------------------------------------------------- -->
+        <div class="card section-spacer" id="register">
+            <div class="card-header">
+                <span class="card-title">➕ Register New Device</span>
+                <span style="font-size:0.75rem;color:var(--text-muted)">Basic password-based authentication (conventional baseline)</span>
+            </div>
+            <div class="card-body">
+                <form class="reg-form" onsubmit="registerDevice(event)" id="reg-form">
+                    <div class="reg-row">
+                        <div class="form-field">
+                            <label for="reg-device-id">Device ID *</label>
+                            <input type="text" id="reg-device-id" placeholder="e.g. ESP32-NODE-002" required>
+                        </div>
+                        <div class="form-field">
+                            <label for="reg-device-name">Device Name *</label>
+                            <input type="text" id="reg-device-name" placeholder="e.g. Lab Sensor Node 2" required>
+                        </div>
+                    </div>
+                    <div class="reg-row">
+                        <div class="form-field">
+                            <label for="reg-secret">Secret Key *</label>
+                            <input type="password" id="reg-secret" placeholder="Shared secret key" required>
+                        </div>
+                        <div class="form-field">
+                            <label for="reg-sensor">Sensor Type</label>
+                            <select id="reg-sensor">
+                                <option value="DHT22">DHT22</option>
+                                <option value="DHT11">DHT11</option>
+                                <option value="BME280">BME280</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap">
+                        <button type="submit" class="btn btn-primary" id="reg-submit-btn">
+                            🔐 Register Device
+                        </button>
+                        <span id="reg-result" style="font-size:0.82rem"></span>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- --------------------------------------------------------
+             SYSTEM STATUS
+             -------------------------------------------------------- -->
+        <div class="card section-spacer" id="status">
+            <div class="card-header">
+                <span class="card-title">🔧 System Status</span>
+                <button class="btn btn-ghost btn-sm" onclick="loadSystemStatus()">↻ Refresh</button>
+            </div>
+            <div class="card-body">
+                <div class="content-grid">
+                    <div>
+                        <p style="font-size:0.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.75rem">
+                            Connection & Transport
+                        </p>
+                        <div class="status-grid" id="connection-status-grid">
+                            <div class="status-row">
+                                <span class="status-row-label">🔀 MQTT Broker</span>
+                                <span class="status-badge badge-offline" id="st-broker">Checking…</span>
+                            </div>
+                            <div class="status-row">
+                                <span class="status-row-label">🔗 MQTT Client</span>
+                                <span class="status-badge badge-offline" id="st-mqtt">Checking…</span>
+                            </div>
+                            <div class="status-row">
+                                <span class="status-row-label">🔒 TLS Encryption</span>
+                                <span class="status-badge badge-offline" id="st-tls">Not Active</span>
+                            </div>
+                            <div class="status-row">
+                                <span class="status-row-label">🗄️ Database</span>
+                                <span class="status-badge badge-offline" id="st-db">Checking…</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <p style="font-size:0.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.75rem">
+                            Details
+                        </p>
+                        <div class="status-grid" id="detail-status-grid">
+                            <div class="status-row">
+                                <span class="status-row-label">Broker URL</span>
+                                <span class="status-row-value text-mono" id="st-broker-url">tcp://localhost:1883</span>
+                            </div>
+                            <div class="status-row">
+                                <span class="status-row-label">Broker Type</span>
+                                <span class="status-row-value" id="st-broker-type">Moquette Embedded</span>
+                            </div>
+                            <div class="status-row">
+                                <span class="status-row-label">Database</span>
+                                <span class="status-row-value">SQLite (iot_baseline.db)</span>
+                            </div>
+                            <div class="status-row">
+                                <span class="status-row-label">Security Note</span>
+                                <span class="status-row-value text-amber" style="font-size:0.72rem">TLS not active — localhost demo only</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Security Scope Note -->
+                <div style="margin-top:1.25rem;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:var(--radius-md);padding:1rem">
+                    <p style="font-size:0.8rem;font-weight:600;color:var(--accent-primary);margin-bottom:0.5rem">
+                        📖 Conventional Baseline — Security Scope (Chapter 3)
+                    </p>
+                    <div style="font-size:0.78rem;color:var(--text-secondary);line-height:1.7">
+                        <strong style="color:var(--text-primary)">Implemented:</strong>
+                        Basic device authentication (shared secret / SHA-256), 
+                        MQTT topic-based routing, basic data validation, 
+                        password-protected dashboard login, conventional device availability monitoring.<br>
+                        <strong style="color:var(--accent-amber)">Not implemented (by design — proposed system only):</strong>
+                        AES-256-GCM source-level encryption, adaptive security policy engine,
+                        advanced key management, threat detection, incident management framework.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main><!-- /main-content -->
+</div><!-- /app-layout -->
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+<script th:src="@{/js/dashboard.js}"></script>
+</body>
+</html>
